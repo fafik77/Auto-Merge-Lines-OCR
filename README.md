@@ -1,5 +1,6 @@
 # Auto Merge Lines OCR
-Smart merge lines from multiple text files (intended for <b>OCR</b>) into one
+Smart merge lines from multiple text files (intended for <b>OCR</b>) into one<br>
+In case some parts of text(header, footer) appear in multiple files only one of those wil be added
 
 <li>can sort files by Name,Date</li>
 <li>can gather files from subdirs</li>
