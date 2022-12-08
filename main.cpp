@@ -24,7 +24,7 @@ static const std::string _onDate("2022-12-08");
 
 void showHelp()
 {
-	printf("Auto Merge Lines -smart merge text lines from multiple files\n Version %s Released %s\n Download: github.com/fafik77\n", _version.c_str(), _onDate.c_str());
+	printf("Auto Merge Lines -smart merge text lines from multiple files\n Version %s Released %s\n Download: github.com/fafik77/Auto-Merge-Lines-OCR\n", _version.c_str(), _onDate.c_str());
 	printf("\t[1]: (string) input files wildcard like \"*.txt\"\n");
 	printf("\t[2]: (string) output file name\n");
 	printf("\t[* options]\n");
