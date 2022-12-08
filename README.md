@@ -16,4 +16,4 @@ Smart merge lines from multiple text files (intended for <b>OCR</b>) into one
    N  by Name(alphabetic)  D  by Date/time (oldest first)<br>
    <b>\-</b> Prefix to reverse order<br>
    /P Pause to confirm file order<br>
-Example: "files\*.txt" MergedLines.txt /O:N<br>
+Example: "files\\*.txt" MergedLines.txt /O:N<br>
