@@ -6,6 +6,7 @@ In case some parts of text(header, footer) appear in multiple files only one of 
 <li>can gather files from subdirs</li>
 <li>can use wildcard to specify input files</li>
 <li>should work with UTF16 paths</li>
+<li>merges multiple lines that were separated by Wrap FitToSpace</li>
 
 <br>Command Line Arguments:<br>
   [1]: (string) input files wildcard like "\*.txt"<br>
