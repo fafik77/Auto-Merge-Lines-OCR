@@ -19,6 +19,9 @@
 
 #include <algorithm>
 
+//#define min(a,b) ((a)<(b)?(a):(b))
+//#define max(a,b) ((a)>(b)?(a):(b))
+
  ///run by ctor
 void LinesMerger::Init(const std::wstring& fileInWildcard)
 {
@@ -198,11 +201,12 @@ size_t LinesMerger::MergeFilesContent()
 	size_t linesWriten= 0;
 	for(const auto& iter: filesGathered){
 		const DirFileI& iter_of= iter;
-		if(fileNr){
+		if(fileNr){ //if not 1st file
 			LinesOf3files[1]= std::move(LinesOf3files[2]);
 		}
 		getLinesFromFile( (_fileInPath+ iter_of.name), (LinesOf3files[2]) );
-		if( fileNr == 0 ){ //copy to all
+
+		if( fileNr == 0 ){ //if 1st file copy to all
 			LinesOf3files[0] =
 			LinesOf3files[1] =
 			LinesOf3files[2];
@@ -212,8 +216,86 @@ size_t LinesMerger::MergeFilesContent()
 		}
 		++fileNr;
 	}
-	linesWriten+= _writeLinesToFile(LinesOf3files[2]);
+	linesWriten+= _writeLinesToFileFix(LinesOf3files[2]);
 return linesWriten;
+}
+
+size_t LinesMerger::ApplyFixes(VectorString& io_lines)
+{
+	size_t retVal= 0;
+  //alias
+	const bool f_WA2L= _filesGatheringOpt.FixWordAcross2Lines;
+	const bool f_MLS= _filesGatheringOpt.FixMultiLineSentence;
+	const bool f_FP= _filesGatheringOpt.FixParagraph;
+  //run this when we need to merge remove lines
+	if(f_WA2L || f_MLS) {
+		size_t curr_pos= 0;
+		while(curr_pos!= io_lines.size()){
+			std::string &str_lineCurr= io_lines[curr_pos];
+			if(f_WA2L && str_lineCurr.size() && str_lineCurr.at(str_lineCurr.size()-1)== '-' &&
+				((curr_pos+1)!=io_lines.size() && io_lines.at(curr_pos+1).size()) ){
+			  //if FixWordAcross2Lines, line ends with '-', next line exists as non empty
+				str_lineCurr.pop_back(); //remove ending '-'
+				str_lineCurr.append(io_lines.at(curr_pos+1)); //append next line
+				io_lines.erase( io_lines.begin()+curr_pos+1 ); //remove next line
+				++retVal;
+				continue; //ok
+			}
+			else if(f_MLS && str_lineCurr.size() &&
+				((curr_pos+1)!=io_lines.size() && io_lines.at(curr_pos+1).size()) ){
+			  //if FixMultiLineSentence, this and next line is non empty
+			  //check if next line should actually be separate?
+				const char fChar= io_lines.at(curr_pos+1).at(0);
+				char fChar2= 0x00;
+				if(str_lineCurr.size()>1) fChar2= io_lines.at(curr_pos+1).at(1);
+				if( (fChar>='0' && fChar<='9') || fChar=='-' || fChar=='*' || fChar2==')' ){
+				  //(next)line starts with enumerator "1. 1) a) *"
+				}
+				else {
+					str_lineCurr.append(" "); //append space
+					str_lineCurr.append(io_lines.at(curr_pos+1)); //append next line
+					io_lines.erase( io_lines.begin()+curr_pos+1 ); //remove next line
+					++retVal;
+					continue; //ok
+				}
+			}
+			//default
+			++curr_pos;
+		}
+	}
+  //run this for FixParagraph
+	if(f_FP){
+		for(auto curr_line= io_lines.begin(); curr_line!= io_lines.end(); ++curr_line){
+			std::string &str_lineCurr= *curr_line;
+			if(str_lineCurr.size()<2) continue; //cant work on empty lines
+			const char &ch_1st= str_lineCurr[0];
+			BYTE needsFix= 0;
+
+			if(ch_1st== '$' || ch_1st== '8' || ch_1st== '5' ) //?starts with $85
+				++needsFix;
+			if(needsFix){ //check if not actually a number
+				if(str_lineCurr[1]<='0' || str_lineCurr[1]>='9') //not 0-9
+					++needsFix;
+			}
+			if(needsFix == 2){ //check if followed by number
+				int leftTries= 5;
+				for(auto ch_curr= str_lineCurr.begin()+2; ch_curr!=str_lineCurr.end(); ++ch_curr){
+					const char &ch_c= *ch_curr;
+					if(ch_c>='0' && ch_c<='9'){ //is a digit
+						needsFix= 3;
+						break;
+					}
+					--leftTries;
+					if( !leftTries ) break;
+				}
+			}
+			if(needsFix==3){
+				str_lineCurr.replace(0, 1, Paragraph_sign, 2);
+			}
+		}
+	}
+
+	return retVal;
 }
 
 size_t LinesMerger::_noneDuplicLines()
@@ -247,16 +329,35 @@ size_t LinesMerger::_noneDuplicLines()
 		if(iter_curr->size()<=2)
 			continue; //skip empty lines
 		for(auto iter_last= lastLines.rbegin(); iter_last!= lastLines.rend(); ++iter_last){
-			if( iter_last->size()>2 && (*iter_last) == (*iter_curr) ){ //skip empty lines
-			 //lines are the same (the most bottom line of last, and the most top line of current)
-				lastLines.erase( (iter_last+1).base(), lastLines.end());
-				currLines.erase(currLines.begin(), iter_curr);
-				linesWriten+= _writeLinesToFile(lastLines);
-				return linesWriten;
+			if( iter_last->size()>2 && //skip empty lines
+			  MatchingStringMin(*iter_last, *iter_curr, _filesGatheringOpt.LineMatchPerc) ){ //if matching str
+			  //check for #CQ consecutive matches
+			  	int conseqMatches= 0;
+			  	const int conseqMatchesReq= _filesGatheringOpt.CQMatches; //translate matches required /CQ
+			  	 ///iter_last
+			  	auto it_1= iter_last- 1;
+			  	 ///iter_curr
+			  	auto it_2= iter_curr+ 1;
+			  	while(conseqMatches<conseqMatchesReq && it_1!=lastLines.rend() && it_2!=currLines.end() && it_1!=lastLines.rbegin()){
+					if (it_1->empty() || it_2->empty()); //dont work on empty lines
+					else if(MatchingStringMin(*it_1, *it_2, _filesGatheringOpt.LineMatchPerc)){
+						++conseqMatches; //a match
+					} else
+						break; //no match
+					--it_1;
+					++it_2;
+			  	}
+			  	if(conseqMatches>= conseqMatchesReq){ //there are at least 1+#CQ lines overlapping
+			   //(multiple)lines are the same (the most bottom line(s) of last, and the most top line(s) of current)
+					lastLines.erase( (iter_last+1).base(), lastLines.end());
+					currLines.erase(currLines.begin(), iter_curr);
+					linesWriten+= _writeLinesToFileFix(lastLines);
+					return linesWriten;
+			  	}
 			}
 		}
 	}
-	linesWriten+= _writeLinesToFile(lastLines);
+	linesWriten+= _writeLinesToFileFix(lastLines);
 	return linesWriten;
 }
 
@@ -273,6 +374,61 @@ size_t LinesMerger::_writeLinesToFile(const VectorString& Lines)
 	}
 	return retVal;
 }
+size_t LinesMerger::_writeLinesToFileFix(const VectorString& Lines, size_t *o_resFix)
+{
+	VectorString LinesFixed= Lines;
+  //apply Fixes & write to file
+	size_t resFix= ApplyFixes( LinesFixed );
+	if(o_resFix) (*o_resFix)= resFix;
+	return _writeLinesToFile(LinesFixed);
+}
 
+bool LinesMerger::MatchingStringMin(const std::string& str1, const std::string& str2, const size_t minPerc )
+{
+	if(minPerc==100 && str1.size()!=str2.size()) return false; //at 100% line size can not be different
+	size_t gotMathing= MatchingString(str1, str2);
+	size_t bySize= str1.size();
+	if(!bySize) bySize=1;
+	if(str2.size()> bySize) bySize= str2.size();
+
+	return ( (gotMathing*100) / bySize)>= minPerc;
+}
+size_t LinesMerger::MatchingString(const std::string& str1, const std::string& str2 )
+{
+	size_t retVal= 0;
+	int sizeMinReq= str2.size()-6;
+	if(sizeMinReq< 0) sizeMinReq= 0;
+	int sizeMaxReq= str2.size()+6;
+	if( !(str1.size()>= (size_t)sizeMinReq && str1.size()<= (size_t)sizeMaxReq) )
+		return 0;
+	std::string::const_iterator iter1= str1.begin();
+	std::string::const_iterator iter2= str2.begin();
+
+	while(iter1!= str1.end() && iter2!=str2.end()){
+	 //compare 2 chars
+		if( CharMatchesOCR(*iter1, *iter2) ){ //char matches
+			++retVal;
+		}
+//		BYTE isAnsi= isCharAnsi(*iter1) | isCharAnsi(*iter2)<<1;
+//		else if(isAnsi && isAnsi<3){ //only one of them is ansi
+//			std::wstring ws;
+//			ws.resize(4);
+//			ws.resize(std::mbstowcs(&ws[0], &*iter1, 4)); // Shrink to fit.
+//		}
+	 //move to next char
+		++iter1;
+		++iter2;
+	}
+
+return retVal;
+}
+
+bool LinesMerger::CharMatchesOCR(const char& ch1, const char& ch2)
+{
+	if(ch1==ch2) return true;
+	if( (ch1=='.' || ch1==',') && (ch2==',' || ch2=='.') ) return true;
+	if( (ch1==';' || ch1==':') && (ch2==':' || ch2==';') ) return true;
+	return false;
+}
 
 

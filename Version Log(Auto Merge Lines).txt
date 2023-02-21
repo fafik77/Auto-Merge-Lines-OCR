@@ -1,4 +1,16 @@
 
+v1.2	2023-02-21
+	+cmd options:
+		/n-	Word is separated into 2 lines ending with '-'
+		/nn	Fix Text is FitToSpace followed by empty line
+		/fix$	Fix common OCR Paragraph mistakes [$85]
+		/M:[50-100]	Match minimum n percent of Line to satisfy (def. 100)
+		/CQ:[0-4]	Consecutive matches forLines (i.e. the icon's red line) (def. 0)
+	new: CQ can be used to force grater merge overlap
+	new: fix$ will be replaced with §
+	
+	now: Line comparison is performed with common OCR errors in mind like.[ ,. ;: ]
+
 v1.1	2022-12-08
 	publisched
 	now: can sort files by Name,Date

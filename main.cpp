@@ -18,8 +18,8 @@
 #include "LinesMerger.h"
 
 
-static const std::string _version("1.1");
-static const std::string _onDate("2022-12-08");
+static const std::string _version("1.2");
+static const std::string _onDate("2023-02-21");
 
 
 void showHelp()
@@ -34,6 +34,11 @@ void showHelp()
    /O:\tSortOrder:\n\tN  by Name(alphabetic)\tD  by Date/time (oldest first)\n\
 \t-  Prefix to reverse order\n\
    /P\tPause to confirm file order\n\
+   /n-\tWord is separated into 2 lines ending with '-'\n\
+   /nn\tFix Text is FitToSpace followed by empty line\n\
+   /fix$\tFix common OCR Paragraph mistakes [$85]\n\
+   /M:[50-100]\tMatch minimum n percent of Line to satisfy (def. 100)\n\
+   /CQ:[0-4]\tConsecutive matches forLines (i.e. the icon's red line) (def. 0)\n\
 Example: \"files\\*.txt\" MergedLines.txt /O:N\n\n");
 }
 
@@ -46,9 +51,6 @@ int main()
 	 //get proper arguments
 	int argc= 0;
 	LPWSTR* argv= CommandLineToArgvW(GetCommandLineW(), &argc);
-//for(int i=1; i!=argc; ++i) {
-// wprintf(L"[%i] |%s|\n", i, argv[i]);
-// }
 
 	if(argc < 3){ //not enough arguments -show help end exit
 		showHelp();
@@ -77,6 +79,33 @@ int main()
 			}
 			else if(argStr.find(L"/P")== 0 || argStr.find(L"/p")== 0) { //PauseToConfirm
 				options.PauseToConfirm= true;
+			}
+			else if(argStr.find(L"/-n")== 0 || argStr.find(L"/n-")== 0 ) { //FixWordAcross2Lines
+				options.FixWordAcross2Lines= true;
+				printf("Fix: n-\t Word across 2 Lines\n");
+			}
+			else if(argStr.find(L"/nn")== 0 ) { //FixMultiLineSentence
+				options.FixMultiLineSentence= true;
+				printf("Fix: nn\t Text is FitToSpace\n");
+			}
+			else if(argStr.find(L"/fix$")== 0 ) { //FixParagraph
+				options.FixParagraph= true;
+				printf("Fix: fix$  Fix Paragraph\n");
+			}
+
+			else if(argStr.find(L"/M:")== 0 ) { //LineMatchPerc		match line percent
+				std::string argNumStr(argStr.begin()+3, argStr.end() ); //convert wstr to str (without the /M: part)
+				int gotI= atoi(argNumStr.data());
+				if(gotI>=50 && gotI<=100) //gotI is [50-100]
+					options.LineMatchPerc= gotI;
+				printf("M: %i\t Minimum Line match Percentage\n", gotI);
+			}
+			else if(argStr.find(L"/CQ:")== 0 ) { //LineMatchPerc		match line percent
+				std::string argNumStr(argStr.begin()+4, argStr.end() ); //convert wstr to str (without the /CQ: part)
+				int gotI= atoi(argNumStr.data());
+				if(gotI>=0 && gotI<=4) //gotI is [0-4]
+					options.CQMatches= gotI;
+				printf("CQ: %i\t Consecutive matches\n", gotI);
 			}
 			++argNum;
 		}

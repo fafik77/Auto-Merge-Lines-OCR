@@ -28,6 +28,7 @@
 class LinesMerger
 {
  public:
+ 	const char Paragraph_sign[2]= {0xc2, 0xa7};
  	struct filesGatheringOptionsSt;
 
 	LinesMerger(const std::wstring& fileInWildcard, const std::wstring& fileOutName, const filesGatheringOptionsSt& options)
@@ -49,11 +50,17 @@ class LinesMerger
 		 ///the /S option
 		bool SubdirsIncluded= false;
 		bool PauseToConfirm= false;
+		 ///where wo-/nrd is across 2lines
+		bool FixWordAcross2Lines= false;
+		bool FixMultiLineSentence= false;
+		bool FixParagraph= false;
 
 		 ///the - prefix
 		bool reversed= false;
 		char orderLetter= 0x00;
-
+		 ///[50-100]
+		BYTE LineMatchPerc= 100;
+		BYTE CQMatches= 0;
 	};
  //functions
 	 ///main function to merge lines from multiple files
@@ -61,6 +68,14 @@ class LinesMerger
 	 ///alias: main function to merge lines from multiple files
 	int run() {return MergeLines();}
 	int ReplaceAll(std::wstring& strIO, const std::wstring& from, const std::wstring& to, size_t moveby= -1);
+	 ///@return true if MatchingString()/str1.size >= minPerc
+	static bool MatchingStringMin(const std::string& str1, const std::string& str2, const size_t minPerc=100 );
+	 ///@return amount of chars that match in both strings
+	static size_t MatchingString(const std::string& str1, const std::string& str2 );
+	 ///checks if chars are similar (a=a, ,=.)
+	static bool CharMatchesOCR(const char& ch1, const char& ch2);
+
+	static bool isCharAnsi(const char c) {return c< 128;}
 
 
  protected:
@@ -73,8 +88,12 @@ class LinesMerger
 	int getLinesFromFile( const std::wstring& file_in, VectorString& lines_out );
 	 ///@return lines written amount
 	size_t MergeFilesContent();
+	 ///@return amount of lines merge/removed
+	 ///@param VectorString lines to fix with filesGatheringOptionsSt options
+	size_t ApplyFixes(VectorString& io_lines);
 	size_t _noneDuplicLines();
 	size_t _writeLinesToFile(const VectorString& Lines);
+	size_t _writeLinesToFileFix(const VectorString& Lines, size_t *o_resFix=nullptr);
  //store, data
 	 ///store @b 3 files worth of lines to write( @b first file, @b prev file, @b curr file)
 	FilesLines LinesOf3files;
